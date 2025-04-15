@@ -1,0 +1,109 @@
+
+version: '2'
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    container_name: namenode
+    environment:
+      - CLUSTER_NAME=test
+    ports:
+      - "50070:50070"
+      - "8020:8020"
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    depends_on:
+      - namenode
+
+  spark-master:
+    image: bde2020/spark-master:2.4.0-hadoop2.7
+    container_name: spark-master
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - SPARK_MODE=master
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    volumes:
+      - ./jobs:/opt/spark-jobs
+    depends_on:
+      - namenode
+      - datanode
+
+  spark-worker:
+    image: bde2020/spark-worker:2.4.0-hadoop2.7
+    container_name: spark-worker
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    ports:
+      - "8081:8081"
+    depends_on:
+      - spark-master
+
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: Republic$01
+      MYSQL_DATABASE: republicdb
+      MYSQL_USER: rpuser
+      MYSQL_PASSWORD: Republic$01
+    ports:
+      - "3600:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  mongodb:
+    image: mongo:4.4
+    container_name: mongodb
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongoadmin
+      MONGO_INITDB_ROOT_PASSWORD: mongopass
+    volumes:
+      - mongo_data:/data/db
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    image: custom-pyspark-notebook
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    depends_on:
+      - spark-master
+      - mysql
+      - mongodb
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    command: start-notebook.sh --NotebookApp.token=''
+
+  knime:
+    build:
+      context: .
+      dockerfile: Dockerfile.knime
+    image: custom-knime
+    container_name: knime
+    ports:
+      - "6901:6901"
+      - "5901:5901"
+    environment:
+      - VNC_PW=knimepass
+    volumes:
+      - ./knime-workspace:/home/knime/knime-workspace
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+  mysql_data:
+  mongo_data:
