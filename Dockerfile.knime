@@ -3,31 +3,28 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install dependencies
+# Install system packages
 RUN apt-get update && apt-get install -y \
-    wget \
-    default-jre \
-    xvfb \
-    x11vnc \
-    fluxbox \
-    curl \
-    ca-certificates \
-    libgtk2.0-0 \
-    libcanberra-gtk-module \
+    wget curl xvfb x11vnc fluxbox novnc net-tools websockify \
+    default-jre libgtk2.0-0 libcanberra-gtk-module \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install KNIME
-RUN wget https://download.knime.org/analytics-platform/linux/knime-latest-linux.gtk.x86_64.tar.gz -O /tmp/knime.tar.gz \
-    && mkdir -p /opt/knime \
-    && tar -xzf /tmp/knime.tar.gz -C /opt/knime --strip-components=1 \
-    && rm /tmp/knime.tar.gz
+RUN wget https://download.knime.org/analytics-platform/linux/knime-latest-linux.gtk.x86_64.tar.gz -O /tmp/knime.tar.gz && \
+    mkdir -p /opt/knime && \
+    tar -xzf /tmp/knime.tar.gz -C /opt/knime --strip-components=1 && \
+    rm /tmp/knime.tar.gz
 
 # Create workspace directory
 RUN mkdir -p /home/knime/knime-workspace
-WORKDIR /home/knime
 
-# Set display environment
-ENV DISPLAY=:1
+# Expose ports for VNC and noVNC
+EXPOSE 6901 5901
 
-# Start KNIME with virtual display
-CMD xvfb-run /opt/knime/knime
+# Start everything
+CMD bash -c "export DISPLAY=:1 && \
+  Xvfb :1 -screen 0 1024x768x16 & \
+  sleep 2 && \
+  fluxbox & \
+  x11vnc -display :1 -nopw -forever -shared & \
+  /opt/knime/knime"
